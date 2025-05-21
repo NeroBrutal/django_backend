@@ -1,35 +1,59 @@
+from datetime import datetime
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from .models import User
-from .serializers import UserSerializer
+from bson.objectid import ObjectId
+from .mongo import users_collection
+from .auth_utils import generate_tokens, verify_token
+import bcrypt  # type: ignore
 
 
 class RegisterView(APIView):
     def post(self, request):
         data = request.data
-        if not all(
-            [data.get("userName"), data.get("userEmail"), data.get("userPassword")]
-        ):
+        username = data.get("userName")
+        email = data.get("userEmail")
+        password = data.get("userPassword")
+
+        if not all([username, email, password]):
             return Response({"error": "Missing required fields"}, status=400)
 
-        if User.objects.filter(email=data["userEmail"]).exists():
+        if users_collection.find_one({"email": email}):
             return Response({"message": "This email is already in use."}, status=400)
 
-        if User.objects.filter(username=data["userName"]).exists():
-            return Response({"message": "This username is already taken."}, status=400)
-
-        user = User(
-            username=data["userName"],
-            email=data["userEmail"],
-            password=data["userPassword"],
-            finalScore=None,
+        hashed_pw = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        created_at = datetime.utcnow()
+        user_doc = {
+            "username": username,
+            "email": email,
+            "password": hashed_pw.decode(),
+            "finalScore": None,
+            "created_at": created_at,
+            "updated_at": None,
+            "credits": 0,
+            "payments": [],
+            "plan": "trial",
+            "plan_expiration": None,
+        }
+        result = users_collection.insert_one(user_doc)
+        access_token, refresh_token = generate_tokens(result.inserted_id)
+        users_collection.update_one(
+            {"_id": result.inserted_id},
+            {"$set": {"access_token": access_token, "refresh_token": refresh_token}},
         )
-        user.save()
-        serializer = UserSerializer(user)
         return Response(
             {
-                **serializer.data,
+                "userId": str(result.inserted_id),
+                "username": username,
+                "email": email,
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "plan": "trial",
+                "plan_expiration": None,
+                "credits": 0,
+                "payments": [],
+                "created_at": created_at,
+                "updated_at": None,
                 "message": "User registered successfully.",
                 "status": 201,
             }
@@ -39,18 +63,29 @@ class RegisterView(APIView):
 class LoginView(APIView):
     def post(self, request):
         data = request.data
-        user = User.objects.filter(email=data.get("userEmail")).first()
+        email = data.get("userEmail")
+        password = data.get("userPassword")
+
+        user = users_collection.find_one({"email": email})
         if not user:
             return Response({"error": "User not found."}, status=404)
 
-        if user.password != data.get("userPassword"):
+        if not bcrypt.checkpw(password.encode(), user["password"].encode()):
             return Response({"error": "Invalid credentials."}, status=401)
+
+        access_token, refresh_token = generate_tokens(user["_id"])
+        users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"access_token": access_token, "refresh_token": refresh_token}},
+        )
 
         return Response(
             {
-                "userId": user.id,
-                "username": user.username,
-                "email": user.email,
+                "userId": str(user["_id"]),
+                "username": user["username"],
+                "email": user["email"],
+                "access_token": access_token,
+                "refresh_token": refresh_token,
                 "message": "Login successful",
             }
         )
@@ -58,33 +93,54 @@ class LoginView(APIView):
 
 class FinalScoreView(APIView):
     def post(self, request):
-        data = request.data
-        user = User.objects.filter(email=data.get("userEmail")).first()
+        token = request.headers.get("Authorization", "").replace("Bearer ", "")
+        user_id = verify_token(token)
+        if not user_id:
+            return Response({"error": "Invalid or expired token"}, status=401)
+
+        score = request.data.get("finalScore")
+        user = users_collection.find_one({"_id": ObjectId(user_id)})
         if not user:
             return Response({"error": "User not found"}, status=404)
 
-        score = data.get("finalScore")
-        if score is not None and (user.finalScore is None or score > user.finalScore):
-            user.finalScore = score
-            user.save()
-            return Response({"message": "Final score saved successfully."}, status=201)
+        if score is not None and (
+            user.get("finalScore") is None or score > user["finalScore"]
+        ):
+            timestamp = datetime.utcnow()
+            users_collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"finalScore": score, "saved_at": timestamp}},
+            )
+            return Response(
+                {
+                    "message": "Final score saved successfully.",
+                    "saved_at": timestamp,
+                },
+                status=201,
+            )
 
         return Response({"message": "New score not higher."}, status=200)
 
 
 class LeaderboardView(APIView):
     def get(self, request):
-        users = (
-            User.objects.all().order_by("-finalScore").values("username", "finalScore")
-        )
-        return Response(users)
+        users = users_collection.find(
+            {"finalScore": {"$ne": None}}, {"username": 1, "finalScore": 1, "_id": 0}
+        ).sort("finalScore", -1)
+
+        return Response(list(users))
 
 
 class UserDetailView(APIView):
     def get(self, request, email):
-        user = User.objects.filter(email=email).first()
+        user = users_collection.find_one({"email": email})
         if not user:
             return Response({"message": "User not found"}, status=404)
 
-        data = UserSerializer(user).data
+        data = {
+            "userId": str(user["_id"]),
+            "username": user["username"],
+            "email": user["email"],
+            "finalScore": user.get("finalScore"),
+        }
         return Response(data)

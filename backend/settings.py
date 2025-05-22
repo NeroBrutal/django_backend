@@ -49,6 +49,5 @@ STATIC_URL = "/static/"
 ROOT_URLCONF = "backend.urls"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ✅ Your MongoDB Settings (for use in mongo.py)
 MONGO_URI = config("MONGO_URI")
 MONGO_DB_NAME = config("MONGO_DB_NAME")

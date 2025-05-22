@@ -8,9 +8,9 @@ SECRET_KEY = settings.SECRET_KEY
 def generate_tokens(user_id):
     access_payload = {
         "user_id": str(user_id),
-        "exp": datetime.utcnow() + timedelta(minutes=15),
+        "exp": datetime.utcnow() + timedelta(days=7),
     }
-    refresh_payload = {
+    refresh_payload = { 
         "user_id": str(user_id),
         "exp": datetime.utcnow() + timedelta(days=7),
     }

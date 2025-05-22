@@ -4,3 +4,4 @@ pymongo==3.12.3
 djangorestframework
 django-cors-headers
 python-decouple
+whitenoise

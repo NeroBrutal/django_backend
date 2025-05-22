@@ -1,4 +1,6 @@
+import os
 from decouple import config
+from pathlib import Path
 
 SECRET_KEY = config("SECRET_KEY")
 DEBUG = config("DEBUG", cast=bool)
@@ -14,6 +16,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "core",
+    "whitenoise.runserver_nostatic",
 ]
 
 MIDDLEWARE = [
@@ -25,6 +28,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
@@ -51,3 +55,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 MONGO_URI = config("MONGO_URI")
 MONGO_DB_NAME = config("MONGO_DB_NAME")
+
+ALLOWED_HOSTS = ["*"]
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"

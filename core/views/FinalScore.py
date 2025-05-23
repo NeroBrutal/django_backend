@@ -14,8 +14,7 @@ class FinalScoreView(APIView):
         if not user_id:
             return Response({"error": "Invalid or expired token"}, status=401)
 
-        score = request.data.get("finalScore")
-        print(f"Score: {score}")
+        score = int(request.data.get("finalScore"))
         user = users_collection.find_one({"_id": ObjectId(user_id)})
         if not user:
             return Response({"error": "User not found"}, status=404)

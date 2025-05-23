@@ -37,6 +37,8 @@ class UserDetailView(APIView):
             updated_data["password"] = bcrypt.hashpw(
                 data["userPassword"].encode(), bcrypt.gensalt()
             ).decode()
+        if "userEmail" in data:
+            updated_data["email"] = data["userEmail"]
 
         if updated_data:
             users_collection.update_one({"email": email}, {"$set": updated_data})

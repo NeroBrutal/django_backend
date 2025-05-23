@@ -12,7 +12,6 @@ class UpdatePlanView(APIView):
         token = request.headers.get("Authorization", "").replace("Bearer ", "")
         user_id = verify_token(token)
         user = users_collection.find_one({"_id": ObjectId(user_id)})
-        print("user", user)
         if not user:
             return Response({"error": "Invalid or expired token"}, status=401)
 

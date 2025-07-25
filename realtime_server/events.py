@@ -8,12 +8,12 @@ def register_socket_events(socketio: SocketIO, session_mgr, config):
     def on_connect():
         sid = request.sid
         session_id = session_mgr.create_session(sid)
-        print(f"🟢 Connected: {sid} → Session: {session_id}")
+        print(f"Connected: {sid} → Session: {session_id}")
 
     @socketio.on("disconnect")
     def on_disconnect():
         sid = request.sid
-        print(f"🔴 Disconnected: {sid}")
+        print(f"Disconnected: {sid}")
         session_mgr.remove_session(sid)
 
     @socketio.on("message")
